@@ -17,6 +17,7 @@ export default function TokenDetails() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tokenData, setTokenData] = useState(null);
+  const [imageKey, setImageKey] = useState(Date.now());
 
   useEffect(() => {
     handleTokenDisplay();
@@ -75,13 +76,12 @@ export default function TokenDetails() {
         <Text style={styles.title}>Token Details</Text>
 
         <View style={styles.photoContainer}>
-          {user?.photo ? (
+          {user?.profile_photo ? (
             <Image 
+              key={imageKey}
               source={{ 
-                uri: user.photo,
-                headers: {
-                  Authorization: params.authToken
-                }
+                uri: `${user.profile_photo}?timestamp=${imageKey}`,
+                headers: { Authorization: params.authToken }
               }} 
               style={styles.profilePhoto}
               resizeMode="cover"
