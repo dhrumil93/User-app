@@ -40,7 +40,10 @@ export default function TokenDetails() {
         "https://interview-task-bmcl.onrender.com/api/user/display",
         {
           headers: {
-            "Authorization": token
+            "Authorization": token,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
           }
         }
       );
@@ -50,6 +53,7 @@ export default function TokenDetails() {
 
       if (result.success) {
         setUser(result.data);
+        setImageKey(Date.now());
       } else {
         throw new Error(result.message || 'Failed to fetch user data');
       }
@@ -80,11 +84,15 @@ export default function TokenDetails() {
             <Image 
               key={imageKey}
               source={{ 
-                uri: `${user.profile_photo}?timestamp=${imageKey}`,
-                headers: { Authorization: params.authToken }
+                uri: `${user.profile_photo}?t=${imageKey}`,
+                headers: { 
+                  Authorization: params.authToken,
+                  'Cache-Control': 'no-cache'
+                }
               }} 
               style={styles.profilePhoto}
               resizeMode="cover"
+              onError={(error) => console.error('Image loading error:', error)}
             />
           ) : (
             <View style={styles.photoPlaceholder}>

@@ -158,20 +158,17 @@ import {
           return;
         }
 
-        // Check file size
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        if (fileInfo.size > 5000000) {
-          Alert.alert("Error", "File size should be less than 5MB");
-          return;
-        }
-
         const formData = new FormData();
         formData.append('userId', userId);
+        
+        // Add the photo file
         formData.append('profile_photo', {
           uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
           type: 'image/jpeg',
           name: 'photo.jpg',
         });
+
+        console.log('Uploading photo...');
 
         const response = await fetch(
           'https://interview-task-bmcl.onrender.com/api/user/updateWithPhoto',
@@ -184,61 +181,32 @@ import {
           }
         );
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Server error:', errorText);
-          throw new Error(`Server error: ${response.status}`);
-        }
-
         const result = await response.json();
         console.log('Photo Upload Response:', result);
 
         if (result.success) {
-          setPhoto(uri);
           Alert.alert('Success', 'Profile photo updated successfully!');
           
-          // Fetch fresh user data
-          const userResponse = await fetch(
-            `https://interview-task-bmcl.onrender.com/api/user/userDetails?userId=${userId}`,
-            {
-              headers: {
-                'Authorization': params.authToken,
-              },
-            }
-          );
-
-          const userData = await userResponse.json();
+          // Generate a unique timestamp
+          const timestamp = Date.now();
           
-          if (userData.success) {
-            router.replace({
-              pathname: '/tokendetails',
-              params: { 
-                authToken: params.authToken,
-                timestamp: Date.now(),
-                userData: JSON.stringify({
-                  ...userData.data,
-                  profile_photo: `${userData.data.profile_photo}?timestamp=${Date.now()}`
-                })
-              },
-            });
-          }
+          // Navigate back with the timestamp
+          router.replace({
+            pathname: '/tokendetails',
+            params: { 
+              authToken: params.authToken,
+              timestamp: timestamp, // This will force a refresh
+            },
+          });
         } else {
           Alert.alert('Error', result.message || 'Failed to update photo');
         }
       } catch (error) {
         console.error('Photo Upload Error:', error);
-        if (error.message.includes('401')) {
-          Alert.alert(
-            'Error', 
-            'Session expired. Please login again.',
-            [{ text: 'OK', onPress: () => router.push('/login') }]
-          );
-        } else {
-          Alert.alert(
-            'Error',
-            'Failed to upload photo. Please try again with a smaller image.'
-          );
-        }
+        Alert.alert(
+          'Error',
+          'Failed to upload photo. Please try again.'
+        );
       } finally {
         setLoading(false);
       }
