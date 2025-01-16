@@ -7,12 +7,9 @@ import {
   Alert,
   TouchableOpacity,
   Image,
-  Platform,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import * as ImagePicker from 'expo-image-picker';
-import PhotoGallery from './components/PhotoGallery';
 
 export default function TokenDetails() {
   const router = useRouter();
@@ -21,12 +18,9 @@ export default function TokenDetails() {
   const [loading, setLoading] = useState(true);
   const [tokenData, setTokenData] = useState(null);
   const [imageKey, setImageKey] = useState(Date.now());
-  const [photos, setPhotos] = useState([]);
-  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     handleTokenDisplay();
-    fetchPhotos();
   }, [params.timestamp]);
 
   const handleTokenDisplay = async () => {
@@ -46,10 +40,7 @@ export default function TokenDetails() {
         "https://interview-task-bmcl.onrender.com/api/user/display",
         {
           headers: {
-            "Authorization": token,
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
+            "Authorization": token
           }
         }
       );
@@ -59,7 +50,6 @@ export default function TokenDetails() {
 
       if (result.success) {
         setUser(result.data);
-        setImageKey(Date.now());
       } else {
         throw new Error(result.message || 'Failed to fetch user data');
       }
@@ -69,86 +59,6 @@ export default function TokenDetails() {
       console.error('Token Display Error:', error);
       Alert.alert('Error', 'Failed to display token details. Please try again.');
       setLoading(false);
-    }
-  };
-
-  const fetchPhotos = async () => {
-    try {
-      const response = await fetch(
-        'https://interview-task-bmcl.onrender.com/api/cart/get_cart',
-        {
-          headers: {
-            Authorization: params.authToken,
-          },
-        }
-      );
-      const result = await response.json();
-      if (result.success) {
-        setPhotos(result.data || []);
-      }
-    } catch (error) {
-      console.error('Error fetching photos:', error);
-    }
-  };
-
-  const handleMultiplePhotos = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to access your photos');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        selectionLimit: 5,
-        quality: 0.5,
-      });
-
-      if (!result.canceled && result.assets.length > 0) {
-        setUploading(true);
-        
-        for (const asset of result.assets) {
-          const formData = new FormData();
-          formData.append('image', {
-            uri: Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri,
-            type: 'image/jpeg',
-            name: 'photo.jpg',
-          });
-
-          try {
-            const response = await fetch(
-              'https://interview-task-bmcl.onrender.com/api/cart/add_cart',
-              {
-                method: 'POST',
-                headers: {
-                  Authorization: params.authToken,
-                },
-                body: formData,
-              }
-            );
-
-            const result = await response.json();
-            if (result.success) {
-              console.log('Photo uploaded successfully');
-            } else {
-              console.error('Failed to upload photo:', result.message);
-            }
-          } catch (error) {
-            console.error('Error uploading photo:', error);
-          }
-        }
-
-        // Refresh photos after upload
-        await fetchPhotos();
-        Alert.alert('Success', 'Photos uploaded successfully!');
-      }
-    } catch (error) {
-      console.error('Photo upload error:', error);
-      Alert.alert('Error', 'Failed to upload photos');
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -170,15 +80,11 @@ export default function TokenDetails() {
             <Image 
               key={imageKey}
               source={{ 
-                uri: `${user.profile_photo}?t=${imageKey}`,
-                headers: { 
-                  Authorization: params.authToken,
-                  'Cache-Control': 'no-cache'
-                }
+                uri: `${user.profile_photo}?timestamp=${params.timestamp}`,
+                headers: { Authorization: params.authToken }
               }} 
               style={styles.profilePhoto}
               resizeMode="cover"
-              onError={(error) => console.error('Image loading error:', error)}
             />
           ) : (
             <View style={styles.photoPlaceholder}>
@@ -251,31 +157,16 @@ export default function TokenDetails() {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, uploading && styles.buttonDisabled]}
-          onPress={handleMultiplePhotos}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <Text style={styles.buttonText}>Upload Photos</Text>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.viewPhotosButton]}
+          style={[styles.deleteButton]}
           onPress={() => router.push({
-            pathname: "/photos",
+            pathname: "/deleteaccount",
             params: { 
-              authToken: params.authToken
+              userData: JSON.stringify(user)
             }
           })}
         >
-          <Text style={styles.buttonText}>View All Photos</Text>
+          <Text style={styles.deleteButtonText}>Delete Account</Text>
         </TouchableOpacity>
-
-        <PhotoGallery photos={photos} authToken={params.authToken} />
-
       </View>
     </ScrollView>
   );
@@ -363,26 +254,16 @@ const styles = StyleSheet.create({
     color: '#666',
     fontSize: 14,
   },
-  button: {
-    backgroundColor: '#4CAF50',
+  deleteButton: {
+    backgroundColor: "#FF3B30",
     padding: 15,
     borderRadius: 10,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 10,
   },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: 'white',
+  deleteButtonText: {
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
-  },
-  viewPhotosButton: {
-    backgroundColor: '#9C27B0',
-    padding: 15,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 10,
+    fontWeight: "bold",
   },
 });
