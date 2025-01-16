@@ -153,6 +153,17 @@ export default function Details() {
           >
             <Text style={styles.updateButtonText}>View Token Details</Text>
           </TouchableOpacity>
+          <TouchableOpacity
+          style={[styles.deleteButton]}
+          onPress={() => router.push({
+            pathname: "/deleteaccount",
+            params: { 
+              userData: JSON.stringify(user)
+            }
+          })}
+        >
+          <Text style={styles.deleteButtonText}>Delete Account</Text>
+        </TouchableOpacity>
         </View>
       </View>
     </ScrollView>
@@ -228,4 +239,16 @@ const styles = StyleSheet.create({
   tokenButton: {
     backgroundColor: "#34C759",
   },
+  deleteButton: {
+    backgroundColor: "#FF3B30",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  deleteButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  }
 });

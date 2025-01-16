@@ -1,7 +1,16 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function RootLayout() {
+  const router = useRouter();
+
+  const handleLogout = () => {
+    router.replace('/login');
+  };
+
   return (
     <>
       <Stack>
@@ -49,6 +58,11 @@ export default function RootLayout() {
             headerShown: true,
             title: 'Token Details',
             headerBackTitle: 'Back',
+            headerRight: () => (
+              <TouchableOpacity onPress={handleLogout} style={{ marginRight: 15 }}>
+                <Ionicons name="log-out-outline" size={24} color="#007AFF" />
+              </TouchableOpacity>
+            ),
           }} 
         />
         <Stack.Screen 
@@ -56,6 +70,22 @@ export default function RootLayout() {
           options={{ 
             headerShown: true,
             title: 'Update With Token',
+            headerBackTitle: 'Back',
+          }} 
+        />
+        <Stack.Screen 
+          name="deleteaccount" 
+          options={{ 
+            headerShown: true,
+            title: 'Delete Account',
+            headerBackTitle: 'Back',
+          }} 
+        />
+        <Stack.Screen 
+          name="photos" 
+          options={{ 
+            headerShown: true,
+            title: 'My Photos',
             headerBackTitle: 'Back',
           }} 
         />

@@ -12,6 +12,7 @@ export default function Home() {
         <TouchableOpacity 
           style={styles.button}
           onPress={() => router.push('/login')}
+          activeOpacity={0.7}
         >
           <Text style={styles.buttonText}>Login</Text>
         </TouchableOpacity>
@@ -19,6 +20,7 @@ export default function Home() {
         <TouchableOpacity 
           style={[styles.button, styles.secondaryButton]}
           onPress={() => router.push('/signup')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.buttonText, styles.secondaryButtonText]}>Sign Up</Text>
         </TouchableOpacity>
@@ -30,16 +32,16 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'white',
     padding: 20,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: 'bold',
-    marginBottom: 30,
-    textAlign: 'center',
+    marginBottom: 40,
+    color: '#333',
   },
   buttonContainer: {
     width: '100%',
@@ -51,6 +53,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     width: '100%',
+    elevation: 3, // for Android shadow
+    shadowColor: '#000', // for iOS shadow
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   buttonText: {
     color: 'white',
