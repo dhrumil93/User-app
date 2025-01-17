@@ -7,195 +7,202 @@ import {
   Alert,
   TouchableOpacity,
   Image,
-  Button,
   Platform,
 } from "react-native";
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import * as ImagePicker from 'expo-image-picker';
 
-export default function TokenDetails() {
+export default function Tokendetails() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tokenData, setTokenData] = useState(null);
-  const [imageKey, setImageKey] = useState(Date.now());
-  const [isMultipleImageUploading, setIsMultipleImageUploading] = useState(false);
-  const [selectedImages, setSelectedImages] = useState([]);
-  const [imageError, setImageError] = useState('');
-  const [uploadedImages, setUploadedImages] = useState([]);
-  const [editingItemId, setEditingItemId] = useState(null);
-  const [editingItemFile, setEditingItemFile] = useState(null);
-  const [isCartItemEditing, setIsCartItemEditing] = useState(false);
+  const [photos, setPhotos] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    handleTokenDisplay();
+    fetchUserData();
   }, [params.timestamp]);
 
-  const handleTokenDisplay = async () => {
+  useEffect(() => {
+    if (user?._id) {
+      fetchPhotos();
+    }
+  }, [user?._id]);
+
+  const fetchUserData = async () => {
     try {
-      const token = params.authToken;
-      console.log('Token received in token details:', token);
-
-      if (!token) {
-        Alert.alert('Error', 'No token found. Please login again.');
-        router.push('/login');
-        return;
-      }
-
-      setTokenData(token);
-      
       const response = await fetch(
         "https://interview-task-bmcl.onrender.com/api/user/display",
         {
           headers: {
-            "Authorization": token
+            "Authorization": params.authToken
           }
         }
       );
       
       const result = await response.json();
-      console.log('API Response:', result);
-
       if (result.success) {
         setUser(result.data);
       } else {
         throw new Error(result.message || 'Failed to fetch user data');
       }
-
-      setLoading(false);
     } catch (error) {
-      console.error('Token Display Error:', error);
-      Alert.alert('Error', 'Failed to display token details. Please try again.');
+      console.error('Error fetching user data:', error);
+      Alert.alert('Error', 'Failed to fetch user data');
+    } finally {
       setLoading(false);
     }
   };
 
-  const handleMultipleImageUpload = () => {
-    setIsMultipleImageUploading(true);
-    setSelectedImages([]);
-    setImageError('');
-  };
-
-  const handleMultipleImagesChange = (e) => {
-    const files = Array.from(e.target.files);
-    
-    // Validate files
-    const invalidFiles = files.filter(file => !file.type.startsWith('image/'));
-    if (invalidFiles.length > 0) {
-      setImageError('Please select only image files');
-      return;
-    }
-
-    // Check file sizes
-    const largeFiles = files.filter(file => file.size > 5000000);
-    if (largeFiles.length > 0) {
-      setImageError('Each file should be less than 5MB');
-      return;
-    }
-
-    setSelectedImages(files);
-    setImageError('');
-  };
-
-  const handleUploadMultipleImages = async () => {
-    if (selectedImages.length === 0) {
-      setImageError('Please select images to upload');
-      return;
-    }
-
+  const fetchPhotos = async () => {
     try {
-      const userId = JSON.parse(params.userData)?.id;
-      if (!userId) {
-        setImageError('User ID not found');
+      if (!user?._id) {
+        console.error('No user ID available');
         return;
       }
 
-      for (const image of selectedImages) {
+      const response = await fetch(
+        `https://interview-task-bmcl.onrender.com/api/cart/display_cart?userId=${user._id}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': params.authToken,
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        console.error('Failed to fetch photos:', response.status);
+        return;
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        setPhotos(result.data || []);
+      } else {
+        console.error('API error:', result.message);
+      }
+    } catch (error) {
+      console.error('Error fetching photos:', error);
+      setPhotos([]);
+    }
+  };
+
+  const handleProfilePhotoUpload = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to access your photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+      });
+
+      if (!result.canceled && result.assets[0]) {
         const formData = new FormData();
-        formData.append('userId', userId);
-        formData.append('image', {
-          uri: Platform.OS === 'ios' ? image.uri.replace('file://', '') : image.uri,
+        formData.append('userId', user._id);
+        formData.append('profile_photo', {
+          uri: Platform.OS === 'ios' ? result.assets[0].uri.replace('file://', '') : result.assets[0].uri,
           type: 'image/jpeg',
-          name: 'photo.jpg'
+          name: 'profile_photo.jpg'
         });
 
         const response = await fetch(
-          'https://interview-task-bmcl.onrender.com/api/cart/add_cart',
+          'https://interview-task-bmcl.onrender.com/api/user/updateWithPhoto',
           {
-            method: 'POST',
+            method: 'PUT',
             headers: {
               'Authorization': params.authToken,
-              'Content-Type': 'multipart/form-data',
             },
             body: formData,
           }
         );
 
-        if (!response.ok) {
-          throw new Error(`Upload failed with status ${response.status}`);
+        const responseData = await response.json();
+        if (responseData.success) {
+          Alert.alert('Success', 'Profile photo updated');
+          fetchUserData();
+        } else {
+          Alert.alert('Error', responseData.message || 'Failed to update photo');
         }
       }
-
-      // After successful upload, update the display
-      setIsMultipleImageUploading(false);
-      setSelectedImages([]);
-      setImageError('');
-      Alert.alert('Success', 'Images uploaded successfully!');
-      
     } catch (error) {
-      console.error('Upload error:', error);
-      setImageError('Failed to upload images. Please try again.');
+      console.error('Error uploading profile photo:', error);
+      Alert.alert('Error', 'Failed to upload profile photo');
     }
   };
 
-  const handleCartItemEdit = (itemId) => {
-    setEditingItemId(itemId);
-    setIsCartItemEditing(true);
-  };
+  const handleMultiplePhotosUpload = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to access your photos');
+        return;
+      }
 
-  const handleCartItemFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setEditingItemFile(file);
-    } else {
-      alert('Please select an image file');
-    }
-  };
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        selectionLimit: 5,
+        quality: 0.5,
+      });
 
-  const handleCartItemUpdate = () => {
-    if (!editingItemFile) return;
+      if (!result.canceled && result.assets.length > 0) {
+        setUploading(true);
+        let successCount = 0;
+        
+        for (const asset of result.assets) {
+          try {
+            const formData = new FormData();
+            formData.append('userId', user._id);
+            formData.append('cartImage', {
+              uri: Platform.OS === 'ios' ? asset.uri.replace('file://', '') : asset.uri,
+              type: 'image/jpeg',
+              name: 'photo.jpg'
+            });
 
-    setUploadedImages(prevImages => 
-      prevImages.map(item => {
-        if (item.id === editingItemId) {
-          return {
-            ...item,
-            url: URL.createObjectURL(editingItemFile),
-            name: editingItemFile.name
-          };
+            const response = await fetch(
+              'https://interview-task-bmcl.onrender.com/api/cart/add_cart',
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': params.authToken,
+                },
+                body: formData,
+              }
+            );
+
+            if (response.ok) {
+              successCount++;
+            } else {
+              console.error('Upload failed with status:', response.status);
+            }
+          } catch (uploadError) {
+            console.error('Error uploading image:', uploadError);
+          }
         }
-        return item;
-      })
-    );
 
-    setIsCartItemEditing(false);
-    setEditingItemId(null);
-    setEditingItemFile(null);
-  };
-
-  const handleDeleteCart = () => {
-    if (window.confirm('Are you sure you want to delete all items from cart?')) {
-      setUploadedImages([]);
-    }
-  };
-
-  const handleDeleteCartItem = (itemId) => {
-    if (window.confirm('Are you sure you want to remove this item?')) {
-      setUploadedImages(prevImages => 
-        prevImages.filter(item => item.id !== itemId)
-      );
+        if (successCount > 0) {
+          Alert.alert('Success', `Successfully uploaded ${successCount} photos`);
+          await fetchPhotos();
+        } else {
+          Alert.alert('Error', 'Failed to upload photos. Please try again.');
+        }
+      }
+    } catch (error) {
+      console.error('Error in photo upload:', error);
+      Alert.alert('Error', 'Failed to upload photos');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -210,78 +217,40 @@ export default function TokenDetails() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.card}>
-        <Text style={styles.title}>Token Details</Text>
+        <Text style={styles.title}>User Profile</Text>
 
-        <View style={styles.photoContainer}>
+        <TouchableOpacity onPress={handleProfilePhotoUpload} style={styles.photoContainer}>
           {user?.profile_photo ? (
             <Image 
-              key={imageKey}
               source={{ 
-                uri: `${user.profile_photo}?timestamp=${params.timestamp}`,
+                uri: user.profile_photo,
                 headers: { Authorization: params.authToken }
               }} 
               style={styles.profilePhoto}
-              resizeMode="cover"
             />
           ) : (
             <View style={styles.photoPlaceholder}>
-              <Text style={styles.photoPlaceholderText}>No Photo</Text>
+              <Text>Add Photo</Text>
             </View>
           )}
+        </TouchableOpacity>
+
+        {/* User Details */}
+        <View style={styles.detailsContainer}>
+          <DetailItem label="Name" value={user?.name} />
+          <DetailItem label="Email" value={user?.email} />
+          <DetailItem label="Mobile" value={user?.mobile} />
+          <DetailItem label="Gender" value={user?.gender} />
+          <DetailItem label="Address" value={user?.address} />
+          <DetailItem label="City" value={user?.city} />
+          <DetailItem label="State" value={user?.state} />
+          <DetailItem label="Country" value={user?.country} />
+          <DetailItem label="Pincode" value={user?.pincode} />
         </View>
 
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Name:</Text>
-          <Text style={styles.value}>{user?.name || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Email:</Text>
-          <Text style={styles.value}>{user?.email || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Mobile:</Text>
-          <Text style={styles.value}>{user?.mobile || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Date of Birth:</Text>
-          <Text style={styles.value}>{user?.dob || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Gender:</Text>
-          <Text style={styles.value}>{user?.gender || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Address:</Text>
-          <Text style={styles.value}>{user?.address || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>City:</Text>
-          <Text style={styles.value}>{user?.city || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Pincode:</Text>
-          <Text style={styles.value}>{user?.pincode || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>State:</Text>
-          <Text style={styles.value}>{user?.state || "N/A"}</Text>
-        </View>
-
-        <View style={styles.detailRow}>
-          <Text style={styles.label}>Country:</Text>
-          <Text style={styles.value}>{user?.country || "N/A"}</Text>
-        </View>
-
+        {/* Action Buttons */}
         <TouchableOpacity
-          style={styles.updateButton}
+          style={styles.button}
           onPress={() => router.push({
             pathname: "/updatewithtoken",
             params: { 
@@ -290,176 +259,70 @@ export default function TokenDetails() {
             }
           })}
         >
-          <Text style={styles.updateButtonText}>Update With Token</Text>
+          <Text style={styles.buttonText}>Update Profile</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.deleteButton}
+          style={[styles.button, { backgroundColor: '#4CAF50' }]}
+          onPress={handleMultiplePhotosUpload}
+          disabled={uploading}
+        >
+          <Text style={styles.buttonText}>
+            {uploading ? 'Uploading...' : 'Upload Photos'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: '#9C27B0' }]}
           onPress={() => router.push({
-            pathname: "/deleteaccount",
-            params: { 
-              userData: JSON.stringify(user)
-            }
+            pathname: "/photos",
+            params: { authToken: params.authToken }
           })}
         >
-          <Text style={styles.deleteButtonText}>Delete Account</Text>
+          <Text style={styles.buttonText}>View All Photos</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.uploadButton}
-          onPress={handleMultipleImageUpload}
-        >
-          <Text style={styles.uploadButtonText}>Upload Multiple Images</Text>
-        </TouchableOpacity>
-
-        {isMultipleImageUploading && (
-          <View style={styles.uploadContainer}>
-            <TouchableOpacity
-              style={styles.uploadSubmitButton}
-              onPress={async () => {
-                try {
-                  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-                  if (status !== 'granted') {
-                    Alert.alert('Permission needed', 'Please grant permission to access your photos');
-                    return;
-                  }
-
-                  const result = await ImagePicker.launchImageLibraryAsync({
-                    mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                    allowsMultipleSelection: true,
-                    selectionLimit: 5,
-                    quality: 1,
-                  });
-
-                  if (!result.canceled && result.assets) {
-                    setSelectedImages(result.assets);
-                  }
-                } catch (error) {
-                  console.error('Error picking images:', error);
-                  setImageError('Failed to pick images');
-                }
-              }}
-            >
-              <Text style={styles.uploadSubmitButtonText}>Select Images</Text>
-            </TouchableOpacity>
-            <Text style={styles.uploadError}>{imageError}</Text>
-            {selectedImages.length > 0 && (
-              <TouchableOpacity
-                style={styles.uploadSubmitButton}
-                onPress={handleUploadMultipleImages}
-              >
-                <Text style={styles.uploadSubmitButtonText}>Upload Selected Images</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {uploadedImages.length > 0 && (
-          <View style={styles.uploadedImagesContainer}>
-            {uploadedImages.map((image) => (
-              <View key={image.id} style={styles.uploadedImageContainer}>
-                <Image 
-                  source={{ uri: image.url }} 
-                  style={styles.uploadedImage}
-                  resizeMode="cover"
-                />
-                <Text style={styles.uploadedImageName}>{image.name}</Text>
-                {isCartItemEditing && editingItemId === image.id ? (
-                  <TouchableOpacity
-                    style={styles.editImageButton}
-                    onPress={() => handleCartItemEdit(image.id)}
-                  >
-                    <Text style={styles.editImageButtonText}>Edit</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={styles.deleteImageButton}
-                    onPress={() => handleDeleteCartItem(image.id)}
-                  >
-                    <Text style={styles.deleteImageButtonText}>Delete</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
       </View>
     </ScrollView>
   );
 }
 
+const DetailItem = ({ label, value }) => (
+  <View style={styles.detailRow}>
+    <Text style={styles.label}>{label}:</Text>
+    <Text style={styles.value}>{value || 'N/A'}</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: '#f5f5f5',
     padding: 16,
-  },
-  centered: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
   },
   card: {
-    backgroundColor: "white",
-    borderRadius: 10,
+    backgroundColor: 'white',
+    borderRadius: 12,
     padding: 16,
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   title: {
     fontSize: 24,
-    fontWeight: "bold",
+    fontWeight: 'bold',
+    textAlign: 'center',
     marginBottom: 20,
-    textAlign: "center",
-    color: "#333", // Changed color for better readability
-  },
-  detailRow: {
-    flexDirection: "row",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    justifyContent: "space-between", // Added for better spacing
-  },
-  label: {
-    flex: 1,
-    fontWeight: "bold",
-    color: "#666",
-    marginRight: 8, // Added for better spacing
-  },
-  value: {
-    flex: 2,
-    color: "#333",
-    marginLeft: 8, // Added for better spacing
-  },
-  updateButton: {
-    backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 10, // Added for better spacing
-  },
-  updateButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
   },
   photoContainer: {
     alignItems: 'center',
     marginBottom: 20,
-    marginTop: 10,
   },
   profilePhoto: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#f0f0f0',
   },
   photoPlaceholder: {
     width: 120,
@@ -471,71 +334,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  photoPlaceholderText: {
-    color: '#666',
-    fontSize: 14,
+  detailsContainer: {
+    marginBottom: 20,
   },
-  deleteButton: {
-    backgroundColor: "#FF3B30",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 10, // Adjusted for better spacing
-  },
-  deleteButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  uploadButton: {
-    backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 20,
-    marginBottom: 10, // Added for better spacing
-  },
-  uploadButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  uploadContainer: {
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  uploadError: {
-    color: "red",
-    marginBottom: 10,
-  },
-  uploadSubmitButton: {
-    backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-  },
-  uploadSubmitButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  uploadedImagesContainer: {
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  uploadedImageContainer: {
+  detailRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
+    padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#f0f0f0',
   },
-  uploadedImage: {
-    width: 50,
-    height: 50,
+  label: {
+    flex: 1,
+    fontWeight: 'bold',
+    color: '#666',
+  },
+  value: {
+    flex: 2,
+    color: '#333',
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    padding: 15,
     borderRadius: 10,
-    backgroundColor: '#f0f0f0',
-    marginRight: 10,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
+

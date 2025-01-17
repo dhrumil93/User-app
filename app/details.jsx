@@ -147,7 +147,10 @@ export default function Details() {
               console.log('Token being passed:', params.authToken);
               router.push({
                 pathname: "/tokendetails",
-                params: { authToken: params.authToken }
+                params: { 
+                  authToken: params.authToken,
+                  userData: JSON.stringify(user)
+                }
               });
             }}
           >
